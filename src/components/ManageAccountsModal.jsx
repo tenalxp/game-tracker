@@ -8,22 +8,19 @@ export default function ManageAccountsModal({ game, accounts, onClose, onRefresh
   const [editDesc, setEditDesc] = useState('')
   const [editImage, setEditImage] = useState('')
   const [deleteId, setDeleteId] = useState(null)
-  const [characters, setCharacters] = useState({}) // accountId -> []
-  const [addingCharFor, setAddingCharFor] = useState(null)
+  const [characters, setCharacters] = useState({})
+  const [activeAccountId, setActiveAccountId] = useState(null)
   const avatarFileRef = useRef()
   const charFileRef = useRef()
 
-  useEffect(() => {
-    fetchAllCharacters()
-  }, [accounts])
+  useEffect(() => { fetchAllCharacters() }, [])
 
   async function fetchAllCharacters() {
     if (!accounts.length) return
-    const ids = accounts.map(a => a.id)
     const { data } = await supabase
       .from('account_characters')
       .select('*')
-      .in('account_id', ids)
+      .in('account_id', accounts.map(a => a.id))
       .order('sort_order')
     const map = {}
     for (const c of (data || [])) {
@@ -46,6 +43,7 @@ export default function ManageAccountsModal({ game, accounts, onClose, onRefresh
     const reader = new FileReader()
     reader.onload = ev => setEditImage(ev.target.result)
     reader.readAsDataURL(file)
+    e.target.value = ''
   }
 
   async function saveEdit() {
@@ -65,18 +63,28 @@ export default function ManageAccountsModal({ game, accounts, onClose, onRefresh
     fetchAllCharacters()
   }
 
+  function openCharPicker(accountId) {
+    setActiveAccountId(accountId)
+    charFileRef.current.value = ''
+    charFileRef.current.click()
+  }
+
   function handleCharFile(e) {
     const files = Array.from(e.target.files)
-    files.forEach(file => {
+    if (!files.length || !activeAccountId) return
+    const accountId = activeAccountId
+    let processed = 0
+    files.forEach((file, idx) => {
       const reader = new FileReader()
       reader.onload = async ev => {
-        const maxOrder = (characters[addingCharFor] || []).length
+        const existingCount = (characters[accountId] || []).length
         await supabase.from('account_characters').insert({
-          account_id: addingCharFor,
+          account_id: accountId,
           image_url: ev.target.result,
-          sort_order: maxOrder,
+          sort_order: existingCount + idx,
         })
-        fetchAllCharacters()
+        processed++
+        if (processed === files.length) fetchAllCharacters()
       }
       reader.readAsDataURL(file)
     })
@@ -90,6 +98,10 @@ export default function ManageAccountsModal({ game, accounts, onClose, onRefresh
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-4">
+      {/* hidden file inputs */}
+      <input ref={avatarFileRef} type="file" accept="image/*" onChange={handleAvatarFile} className="hidden" />
+      <input ref={charFileRef} type="file" accept="image/*" multiple onChange={handleCharFile} className="hidden" />
+
       <div className="bg-slate-800 rounded-2xl w-full max-w-sm flex flex-col max-h-[85vh]">
         <div className="flex items-center justify-between p-5 border-b border-slate-700">
           <div>
@@ -106,9 +118,7 @@ export default function ManageAccountsModal({ game, accounts, onClose, onRefresh
             <div key={account.id} className="bg-slate-700 rounded-xl p-4">
               {editingId === account.id ? (
                 <div>
-                  {/* Avatar */}
                   <div className="flex justify-center mb-4">
-                    <input ref={avatarFileRef} type="file" accept="image/*" onChange={handleAvatarFile} className="hidden" />
                     <button onClick={() => avatarFileRef.current.click()} className="relative group">
                       <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center bg-slate-600 border-2 border-slate-500 group-hover:border-indigo-400 transition-colors">
                         {editImage
@@ -156,11 +166,11 @@ export default function ManageAccountsModal({ game, accounts, onClose, onRefresh
                     </button>
                   </div>
 
-                  {/* Characters */}
+                  {/* Characters section */}
                   <div className="border-t border-slate-600 pt-3">
                     <div className="flex items-center gap-1 mb-2">
-                      <Image size={12} className="text-slate-400" />
-                      <span className="text-xs text-slate-400">Characters</span>
+                      <Image size={11} className="text-slate-400" />
+                      <span className="text-xs text-slate-400 font-medium">Characters</span>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {(characters[account.id] || []).map(char => (
@@ -174,18 +184,8 @@ export default function ManageAccountsModal({ game, accounts, onClose, onRefresh
                           </button>
                         </div>
                       ))}
-                      {/* Add char button */}
-                      <input
-                        ref={addingCharFor === account.id ? charFileRef : null}
-                        type="file" accept="image/*" multiple
-                        onChange={handleCharFile}
-                        className="hidden"
-                      />
                       <button
-                        onClick={() => {
-                          setAddingCharFor(account.id)
-                          setTimeout(() => charFileRef.current?.click(), 50)
-                        }}
+                        onClick={() => openCharPicker(account.id)}
                         className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-500 hover:border-indigo-400 flex items-center justify-center text-slate-500 hover:text-indigo-400 transition-colors"
                       >
                         <Plus size={18} />
