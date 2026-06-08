@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, GripVertical, ToggleLeft, ToggleRight } from 'lucide-react'
+import { X, Plus, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 export default function ManageTasksModal({ game, onClose }) {
@@ -52,7 +52,7 @@ export default function ManageTasksModal({ game, onClose }) {
       <div className="bg-slate-800 rounded-2xl w-full max-w-sm flex flex-col max-h-[80vh]">
         <div className="flex items-center justify-between p-5 border-b border-slate-700">
           <div>
-            <h2 className="font-bold text-lg">จัดการ Daily Tasks</h2>
+            <h2 className="font-bold text-lg">Manage Daily Tasks</h2>
             <p className="text-slate-400 text-sm">{game.name}</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-700 text-slate-400 hover:text-white transition-colors">
@@ -62,33 +62,27 @@ export default function ManageTasksModal({ game, onClose }) {
 
         <div className="flex-1 overflow-y-auto p-5">
           {loading ? (
-            <div className="text-slate-500 text-center py-8">กำลังโหลด...</div>
+            <div className="text-slate-500 text-center py-8">Loading...</div>
           ) : tasks.length === 0 ? (
-            <div className="text-slate-500 text-center py-8">ยังไม่มี task เพิ่มด้านล่าง</div>
+            <div className="text-slate-500 text-center py-8">No tasks yet. Add one below.</div>
           ) : (
             <div className="space-y-2">
               {tasks.map(task => (
-                <div
-                  key={task.id}
-                  className="flex items-center gap-3 bg-slate-700 rounded-xl px-4 py-3"
-                >
+                <div key={task.id} className="flex items-center gap-3 bg-slate-700 rounded-xl px-4 py-3">
                   <span className={`flex-1 text-sm ${!task.enabled ? 'line-through text-slate-500' : 'text-white'}`}>
                     {task.name}
                   </span>
                   <button
                     onClick={() => toggleTask(task)}
                     className="text-slate-400 hover:text-white transition-colors flex-shrink-0"
-                    title={task.enabled ? 'ปิด task นี้' : 'เปิด task นี้'}
+                    title={task.enabled ? 'Disable task' : 'Enable task'}
                   >
                     {task.enabled
                       ? <ToggleRight size={24} style={{ color: game.color }} />
                       : <ToggleLeft size={24} />
                     }
                   </button>
-                  <button
-                    onClick={() => deleteTask(task.id)}
-                    className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0"
-                  >
+                  <button onClick={() => deleteTask(task.id)} className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0">
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -101,12 +95,11 @@ export default function ManageTasksModal({ game, onClose }) {
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="ชื่อ task ใหม่"
+              placeholder="New task name"
               value={newTask}
               onChange={e => setNewTask(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addTask()}
               className="flex-1 bg-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-400 outline-none focus:ring-2 text-sm"
-              style={{ '--tw-ring-color': game.color }}
             />
             <button
               onClick={addTask}
@@ -115,11 +108,11 @@ export default function ManageTasksModal({ game, onClose }) {
               style={{ backgroundColor: game.color }}
             >
               <Plus size={16} />
-              เพิ่ม
+              Add
             </button>
           </div>
           <p className="text-slate-500 text-xs mt-2">
-            ปิด task = ซ่อนจาก checklist ชั่วคราว (เปิดได้ตลอด)
+            Disable a task to hide it from the checklist temporarily.
           </p>
         </div>
       </div>

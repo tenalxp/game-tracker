@@ -59,20 +59,21 @@ export default function AccountList({ game, onSelect, onBack }) {
     fetchAccounts()
   }
 
+  const gameIcon = game.image_url
+    ? <img src={game.image_url} alt={game.name} className="w-full h-full object-cover rounded-xl" />
+    : <span className="text-white font-bold">{game.name.charAt(0).toUpperCase()}</span>
+
   return (
     <div className="max-w-lg mx-auto px-4 py-6">
       <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={onBack}
-          className="p-2 rounded-xl hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"
-        >
+        <button onClick={onBack} className="p-2 rounded-xl hover:bg-slate-800 transition-colors text-slate-400 hover:text-white">
           <ArrowLeft size={22} />
         </button>
         <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0"
-          style={{ backgroundColor: game.color }}
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
+          style={{ backgroundColor: game.image_url ? 'transparent' : game.color }}
         >
-          {game.name.charAt(0).toUpperCase()}
+          {gameIcon}
         </div>
         <h1 className="text-xl font-bold flex-1">{game.name}</h1>
         <button
@@ -80,7 +81,7 @@ export default function AccountList({ game, onSelect, onBack }) {
           className="flex items-center gap-1 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg text-sm transition-colors"
         >
           <Settings size={15} />
-          จัดการ Daily
+          Manage Daily
         </button>
       </div>
 
@@ -92,16 +93,16 @@ export default function AccountList({ game, onSelect, onBack }) {
           style={{ color: game.color }}
         >
           <Plus size={15} />
-          เพิ่ม Account
+          Add Account
         </button>
       </div>
 
       {loading ? (
-        <div className="text-slate-500 text-center py-10">กำลังโหลด...</div>
+        <div className="text-slate-500 text-center py-10">Loading...</div>
       ) : accounts.length === 0 ? (
         <div className="text-center py-20 text-slate-500">
           <User size={40} className="mx-auto mb-3 opacity-30" />
-          <p>ยังไม่มี account</p>
+          <p>No accounts yet.</p>
         </div>
       ) : (
         <div className="grid gap-3">
@@ -112,23 +113,17 @@ export default function AccountList({ game, onSelect, onBack }) {
               className="w-full flex items-center gap-4 bg-slate-800 hover:bg-slate-700 rounded-xl p-4 transition-colors text-left group"
             >
               <div
-                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
+                className="w-10 h-10 rounded-full flex items-center justify-center font-bold flex-shrink-0"
                 style={{ backgroundColor: game.color + '33', border: `2px solid ${game.color}` }}
               >
                 <span style={{ color: game.color }}>{account.name.charAt(0).toUpperCase()}</span>
               </div>
               <span className="flex-1 font-semibold">{account.name}</span>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <span
-                  onClick={(e) => openEdit(e, account)}
-                  className="p-2 rounded-lg hover:bg-slate-600 text-slate-400 hover:text-white transition-colors"
-                >
+                <span onClick={(e) => openEdit(e, account)} className="p-2 rounded-lg hover:bg-slate-600 text-slate-400 hover:text-white transition-colors">
                   <Pencil size={15} />
                 </span>
-                <span
-                  onClick={(e) => { e.stopPropagation(); setDeleteId(account.id) }}
-                  className="p-2 rounded-lg hover:bg-red-900 text-slate-400 hover:text-red-400 transition-colors"
-                >
+                <span onClick={(e) => { e.stopPropagation(); setDeleteId(account.id) }} className="p-2 rounded-lg hover:bg-red-900 text-slate-400 hover:text-red-400 transition-colors">
                   <Trash2 size={15} />
                 </span>
               </div>
@@ -137,58 +132,43 @@ export default function AccountList({ game, onSelect, onBack }) {
         </div>
       )}
 
-      {/* Add/Edit Modal */}
       {showAdd && (
         <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-4">
           <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-bold mb-4">{editAccount ? 'แก้ไข Account' : 'เพิ่ม Account ใหม่'}</h2>
+            <h2 className="text-lg font-bold mb-4">{editAccount ? 'Edit Account' : 'Add New Account'}</h2>
             <input
               type="text"
-              placeholder="ชื่อ account"
+              placeholder="Account name"
               value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && save()}
               autoFocus
               className="w-full bg-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-400 outline-none focus:ring-2 mb-4"
-              style={{ '--tw-ring-color': game.color }}
             />
             <div className="flex gap-3">
-              <button
-                onClick={() => setShowAdd(false)}
-                className="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-medium transition-colors"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={save}
-                disabled={saving || !name.trim()}
-                className="flex-1 py-3 rounded-xl font-medium transition-colors disabled:opacity-50 text-white"
-                style={{ backgroundColor: game.color }}
-              >
-                {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+              <button onClick={() => setShowAdd(false)} className="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-medium transition-colors">Cancel</button>
+              <button onClick={save} disabled={saving || !name.trim()} className="flex-1 py-3 rounded-xl font-medium transition-colors disabled:opacity-50 text-white" style={{ backgroundColor: game.color }}>
+                {saving ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirm */}
       {deleteId && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-bold mb-2">ลบ Account นี้?</h2>
-            <p className="text-slate-400 text-sm mb-6">ประวัติการทำ daily ทั้งหมดจะถูกลบด้วย</p>
+            <h2 className="text-lg font-bold mb-2">Delete this account?</h2>
+            <p className="text-slate-400 text-sm mb-6">All daily history will be deleted too.</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)} className="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-medium transition-colors">ยกเลิก</button>
-              <button onClick={deleteAccount} className="flex-1 bg-red-600 hover:bg-red-500 py-3 rounded-xl font-medium transition-colors">ลบ</button>
+              <button onClick={() => setDeleteId(null)} className="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-medium transition-colors">Cancel</button>
+              <button onClick={deleteAccount} className="flex-1 bg-red-600 hover:bg-red-500 py-3 rounded-xl font-medium transition-colors">Delete</button>
             </div>
           </div>
         </div>
       )}
 
-      {showTasks && (
-        <ManageTasksModal game={game} onClose={() => setShowTasks(false)} />
-      )}
+      {showTasks && <ManageTasksModal game={game} onClose={() => setShowTasks(false)} />}
     </div>
   )
 }

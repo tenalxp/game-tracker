@@ -44,22 +44,16 @@ export default function App() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-slate-400 text-lg">กำลังโหลด...</div>
+        <div className="text-slate-400 text-lg">Loading...</div>
       </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
-      {view === 'games' && (
-        <GameList games={games} onSelect={selectGame} onRefresh={fetchGames} />
-      )}
-      {view === 'accounts' && (
-        <AccountList game={selectedGame} onSelect={selectAccount} onBack={goBack} />
-      )}
-      {view === 'tasks' && (
-        <TaskList game={selectedGame} account={selectedAccount} onBack={goBack} />
-      )}
+      {view === 'games' && <GameList games={games} onSelect={selectGame} onRefresh={fetchGames} />}
+      {view === 'accounts' && <AccountList game={selectedGame} onSelect={selectAccount} onBack={goBack} />}
+      {view === 'tasks' && <TaskList game={selectedGame} account={selectedAccount} onBack={goBack} />}
     </div>
   )
 }
