@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Settings, CheckCircle2, Circle, ClipboardList } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { getGameDay, formatGameDay } from '../lib/dateUtils'
+import { getGameDay, formatGameDay, getTimeUntilReset } from '../lib/dateUtils'
 import ManageTasksModal from './ManageTasksModal'
 
 export default function TaskList({ game, account, onBack }) {
@@ -10,7 +10,13 @@ export default function TaskList({ game, account, onBack }) {
   const [loading, setLoading] = useState(true)
   const [showManage, setShowManage] = useState(false)
   const [toggling, setToggling] = useState(new Set())
+  const [countdown, setCountdown] = useState(getTimeUntilReset())
   const gameDay = getGameDay()
+
+  useEffect(() => {
+    const timer = setInterval(() => setCountdown(getTimeUntilReset()), 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     fetchData()
@@ -71,7 +77,10 @@ export default function TaskList({ game, account, onBack }) {
       {/* Progress */}
       <div className="bg-slate-800 rounded-2xl p-4 mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-slate-400">{formatGameDay(gameDay)}</span>
+          <div>
+            <div className="text-sm text-slate-400">{formatGameDay(gameDay)}</div>
+            <div className="text-xs text-slate-500">Reset in <span className="text-orange-400 font-mono font-medium">{countdown}</span></div>
+          </div>
           <span className="text-sm font-semibold" style={{ color: progress === 100 ? '#22c55e' : game.color }}>
             {doneCount}/{tasks.length}
           </span>

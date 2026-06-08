@@ -18,3 +18,23 @@ export function formatGameDay(dateStr) {
   const [y, m, d] = dateStr.split('-')
   return `${d}/${m}/${y}`
 }
+
+export function getTimeUntilReset() {
+  const now = new Date()
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60 * 1000
+  const bangkokMs = utcMs + 7 * 60 * 60 * 1000
+  const bangkok = new Date(bangkokMs)
+
+  // Next reset = today 3am Bangkok, or tomorrow 3am if already past 3am
+  const reset = new Date(bangkokMs)
+  reset.setHours(3, 0, 0, 0)
+  if (bangkok.getHours() >= 3) {
+    reset.setDate(reset.getDate() + 1)
+  }
+
+  const diff = reset.getTime() - bangkokMs
+  const h = Math.floor(diff / 3600000)
+  const m = Math.floor((diff % 3600000) / 60000)
+  const s = Math.floor((diff % 60000) / 1000)
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
