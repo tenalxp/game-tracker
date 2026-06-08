@@ -125,13 +125,13 @@ export default function TaskList({ game, account, onBack }) {
           {/* Characters row */}
           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
             {characters.map(char => (
-              <img key={char.id} src={char.image_url} alt={char.name || ''} className="w-7 h-7 rounded-lg object-cover" />
+              <img key={char.id} src={char.image_url} alt={char.name || ''} className="w-12 h-12 rounded-xl object-cover" />
             ))}
             <button
               onClick={() => setShowCharPicker(true)}
-              className="w-7 h-7 rounded-lg border border-dashed border-slate-600 hover:border-indigo-400 flex items-center justify-center text-slate-500 hover:text-indigo-400 transition-colors"
+              className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-600 hover:border-indigo-400 flex items-center justify-center text-slate-500 hover:text-indigo-400 transition-colors"
             >
-              <Plus size={13} />
+              <Plus size={16} />
             </button>
           </div>
         </div>
