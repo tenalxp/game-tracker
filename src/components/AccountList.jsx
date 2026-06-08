@@ -23,13 +23,12 @@ export default function AccountList({ game, onSelect, onBack }) {
     if (data?.length) {
       const { data: chars } = await supabase
         .from('account_characters')
-        .select('*')
+        .select('account_id, characters(id, image_url, name)')
         .in('account_id', data.map(a => a.id))
-        .order('sort_order')
       const map = {}
-      for (const c of (chars || [])) {
-        if (!map[c.account_id]) map[c.account_id] = []
-        map[c.account_id].push(c)
+      for (const row of (chars || [])) {
+        if (!map[row.account_id]) map[row.account_id] = []
+        if (row.characters) map[row.account_id].push(row.characters)
       }
       setCharacters(map)
     }
