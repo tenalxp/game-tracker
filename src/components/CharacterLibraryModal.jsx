@@ -128,7 +128,7 @@ export default function CharacterLibraryModal({ game, onClose }) {
           )}
         </div>
 
-        <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleFiles} className="hidden" />
+        <input ref={fileRef} type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" multiple onChange={handleFiles} className="hidden" />
       </div>
     </div>
   )

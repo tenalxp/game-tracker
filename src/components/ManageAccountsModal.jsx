@@ -63,7 +63,7 @@ export default function ManageAccountsModal({ game, accounts, onClose, onRefresh
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-4">
-      <input ref={avatarFileRef} type="file" accept="image/*" onChange={handleAvatarFile} className="hidden" />
+      <input ref={avatarFileRef} type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={handleAvatarFile} className="hidden" />
 
       <div className="bg-slate-800 rounded-2xl w-full max-w-sm flex flex-col max-h-[85vh]">
         <div className="flex items-center justify-between p-5 border-b border-slate-700">

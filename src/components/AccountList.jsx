@@ -155,7 +155,7 @@ export default function AccountList({ game, onSelect, onBack }) {
             <h2 className="text-lg font-bold mb-5">Add New Account</h2>
 
             <div className="flex justify-center mb-5">
-              <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
+              <input ref={fileRef} type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={handleFile} className="hidden" />
               <button onClick={() => fileRef.current.click()} className="relative group">
                 <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center bg-slate-700 border-2 border-slate-600 group-hover:border-indigo-500 transition-colors">
                   {imageUrl

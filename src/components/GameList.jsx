@@ -130,7 +130,7 @@ export default function GameList({ games, onSelect, onRefresh }) {
               className="w-full bg-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500 mb-4"
             />
 
-            <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={handleFileChange} className="hidden" />
             <button
               onClick={() => fileRef.current.click()}
               className="w-full bg-slate-700 hover:bg-slate-600 rounded-xl py-3 text-sm text-slate-300 transition-colors mb-3"
