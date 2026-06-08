@@ -1,39 +1,30 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Settings, CheckCircle2, Circle, ClipboardList } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { getGameDay, formatGameDay, getTimeUntilReset, daysBetween } from '../lib/dateUtils'
+import { getGameDayForHour, formatGameDay, getTimeUntilResetHour, daysBetween } from '../lib/dateUtils'
 import ManageTasksModal from './ManageTasksModal'
 
 export default function TaskList({ game, account, onBack }) {
   const [tasks, setTasks] = useState([])
-  const [completionMap, setCompletionMap] = useState({}) // taskId -> latest game_day
+  const [completionMap, setCompletionMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [showManage, setShowManage] = useState(false)
   const [toggling, setToggling] = useState(new Set())
-  const [countdown, setCountdown] = useState(getTimeUntilReset())
-  const gameDay = getGameDay()
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
-    const timer = setInterval(() => setCountdown(getTimeUntilReset()), 1000)
+    const timer = setInterval(() => setTick(t => t + 1), 1000)
     return () => clearInterval(timer)
   }, [])
 
-  useEffect(() => {
-    fetchData()
-  }, [account.id])
+  useEffect(() => { fetchData() }, [account.id])
 
   async function fetchData() {
     const [tasksRes, completionsRes] = await Promise.all([
       supabase.from('game_tasks').select('*').eq('game_id', game.id).eq('enabled', true).order('sort_order'),
-      supabase.from('task_completions')
-        .select('task_id, game_day')
-        .eq('account_id', account.id)
-        .order('game_day', { ascending: false }),
+      supabase.from('task_completions').select('task_id, game_day').eq('account_id', account.id).order('game_day', { ascending: false }),
     ])
-
     setTasks(tasksRes.data || [])
-
-    // Build map: taskId -> latest game_day completed
     const map = {}
     for (const c of (completionsRes.data || [])) {
       if (!map[c.task_id]) map[c.task_id] = c.game_day
@@ -45,48 +36,47 @@ export default function TaskList({ game, account, onBack }) {
   function isDone(task) {
     const lastDay = completionMap[task.id]
     if (!lastDay) return false
+    const resetHour = task.reset_hour ?? 3
     const resetDays = task.reset_days || 1
-    if (resetDays === 1) return lastDay === gameDay
-    return daysBetween(lastDay, gameDay) < resetDays
+    const today = getGameDayForHour(resetHour)
+    if (resetDays === 1) return lastDay === today
+    return daysBetween(lastDay, today) < resetDays
   }
 
-  function resetLabel(task) {
-    const days = task.reset_days || 1
-    if (days === 1) return null
+  function taskCountdown(task) {
+    const resetHour = task.reset_hour ?? 3
+    const resetDays = task.reset_days || 1
+    if (!isDone(task)) return null
+    if (resetDays === 1) {
+      return `Resets in ${getTimeUntilResetHour(resetHour)}`
+    }
+    const today = getGameDayForHour(resetHour)
     const lastDay = completionMap[task.id]
-    if (!lastDay || !isDone(task)) return `Every ${days}d`
-    const remaining = days - daysBetween(lastDay, gameDay)
+    const remaining = resetDays - daysBetween(lastDay, today)
     return `Resets in ${remaining}d`
   }
 
   async function toggleCompletion(task) {
     if (toggling.has(task.id)) return
     setToggling(prev => new Set([...prev, task.id]))
-
     const done = isDone(task)
+    const resetHour = task.reset_hour ?? 3
+    const today = getGameDayForHour(resetHour)
     if (done) {
-      // delete the latest completion
       const lastDay = completionMap[task.id]
-      await supabase.from('task_completions')
-        .delete()
-        .eq('account_id', account.id)
-        .eq('task_id', task.id)
-        .eq('game_day', lastDay)
+      await supabase.from('task_completions').delete()
+        .eq('account_id', account.id).eq('task_id', task.id).eq('game_day', lastDay)
       setCompletionMap(prev => { const m = { ...prev }; delete m[task.id]; return m })
     } else {
-      await supabase.from('task_completions').upsert({
-        account_id: account.id,
-        task_id: task.id,
-        game_day: gameDay,
-      })
-      setCompletionMap(prev => ({ ...prev, [task.id]: gameDay }))
+      await supabase.from('task_completions').upsert({ account_id: account.id, task_id: task.id, game_day: today })
+      setCompletionMap(prev => ({ ...prev, [task.id]: today }))
     }
-
     setToggling(prev => { const s = new Set(prev); s.delete(task.id); return s })
   }
 
   const doneCount = tasks.filter(t => isDone(t)).length
   const progress = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0
+  const today = getGameDayForHour(3)
 
   const gameIcon = game.image_url
     ? <img src={game.image_url} alt={game.name} className="w-full h-full object-cover rounded-md" />
@@ -100,9 +90,7 @@ export default function TaskList({ game, account, onBack }) {
         </button>
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md flex-shrink-0 overflow-hidden">
-              {gameIcon}
-            </div>
+            <div className="w-5 h-5 rounded-md flex-shrink-0 overflow-hidden">{gameIcon}</div>
             <span className="text-slate-400 text-sm">{game.name}</span>
           </div>
           <h1 className="font-bold text-lg leading-tight">{account.name}</h1>
@@ -116,19 +104,14 @@ export default function TaskList({ game, account, onBack }) {
       {/* Progress */}
       <div className="bg-slate-800 rounded-2xl p-4 mb-6">
         <div className="flex items-center justify-between mb-2">
-          <div>
-            <div className="text-sm text-slate-400">{formatGameDay(gameDay)}</div>
-            <div className="text-xs text-slate-500">Reset in <span className="text-orange-400 font-mono font-medium">{countdown}</span></div>
-          </div>
+          <span className="text-sm text-slate-400">{formatGameDay(today)}</span>
           <span className="text-sm font-semibold" style={{ color: progress === 100 ? '#22c55e' : game.color }}>
             {doneCount}/{tasks.length}
           </span>
         </div>
         <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${progress}%`, backgroundColor: progress === 100 ? '#22c55e' : game.color }}
-          />
+          <div className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${progress}%`, backgroundColor: progress === 100 ? '#22c55e' : game.color }} />
         </div>
         {progress === 100 && tasks.length > 0 && (
           <p className="text-green-400 text-sm text-center mt-2 font-medium">✓ All done!</p>
@@ -148,26 +131,35 @@ export default function TaskList({ game, account, onBack }) {
           {tasks.map(task => {
             const done = isDone(task)
             const busy = toggling.has(task.id)
-            const label = resetLabel(task)
+            const countdown = taskCountdown(task)
+            const resetHour = task.reset_hour ?? 3
+            const resetDays = task.reset_days || 1
+            const scheduleLabel = !done
+              ? (resetDays === 1
+                  ? `Resets at ${String(resetHour).padStart(2, '0')}:00`
+                  : `Every ${resetDays}d @ ${String(resetHour).padStart(2, '0')}:00`)
+              : null
+
             return (
               <button
                 key={task.id}
                 onClick={() => toggleCompletion(task)}
                 disabled={busy}
-                className={`w-full flex items-center gap-4 rounded-xl p-4 transition-all text-left ${done ? 'bg-slate-800/50 opacity-70' : 'bg-slate-800 hover:bg-slate-700 active:scale-[0.98]'}`}
+                className={`w-full flex items-center gap-4 rounded-xl p-4 transition-all text-left ${done ? 'bg-slate-800/50' : 'bg-slate-800 hover:bg-slate-700 active:scale-[0.98]'}`}
               >
                 {done
                   ? <CheckCircle2 size={24} style={{ color: game.color }} className="flex-shrink-0" />
                   : <Circle size={24} className="text-slate-500 flex-shrink-0" />
                 }
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className={`font-medium ${done ? 'line-through text-slate-400' : 'text-white'}`}>
                     {task.name}
                   </div>
-                  {label && (
-                    <div className="text-xs mt-0.5" style={{ color: done ? '#6b7280' : game.color }}>
-                      {label}
-                    </div>
+                  {countdown && (
+                    <div className="text-xs mt-0.5 text-orange-400 font-mono">{countdown}</div>
+                  )}
+                  {scheduleLabel && (
+                    <div className="text-xs mt-0.5 text-slate-500">{scheduleLabel}</div>
                   )}
                 </div>
               </button>

@@ -25,16 +25,15 @@ export function daysBetween(dateStr1, dateStr2) {
   return Math.floor((d2 - d1) / (1000 * 60 * 60 * 24))
 }
 
-export function getTimeUntilReset() {
+export function getTimeUntilResetHour(resetHour = 3) {
   const now = new Date()
   const utcMs = now.getTime() + now.getTimezoneOffset() * 60 * 1000
   const bangkokMs = utcMs + 7 * 60 * 60 * 1000
   const bangkok = new Date(bangkokMs)
 
-  // Next reset = today 3am Bangkok, or tomorrow 3am if already past 3am
   const reset = new Date(bangkokMs)
-  reset.setHours(3, 0, 0, 0)
-  if (bangkok.getHours() >= 3) {
+  reset.setHours(resetHour, 0, 0, 0)
+  if (bangkok.getHours() >= resetHour) {
     reset.setDate(reset.getDate() + 1)
   }
 
@@ -43,4 +42,20 @@ export function getTimeUntilReset() {
   const m = Math.floor((diff % 3600000) / 60000)
   const s = Math.floor((diff % 60000) / 1000)
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+export function getGameDayForHour(resetHour = 3) {
+  const now = new Date()
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60 * 1000
+  const bangkokMs = utcMs + 7 * 60 * 60 * 1000
+  const bangkok = new Date(bangkokMs)
+
+  if (bangkok.getHours() < resetHour) {
+    bangkok.setDate(bangkok.getDate() - 1)
+  }
+
+  const y = bangkok.getFullYear()
+  const m = String(bangkok.getMonth() + 1).padStart(2, '0')
+  const d = String(bangkok.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
