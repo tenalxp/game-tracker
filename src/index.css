@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+* {
+  font-family: 'Noto Sans Thai', sans-serif;
+}
+
+body {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
