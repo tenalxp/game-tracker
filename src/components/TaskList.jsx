@@ -17,10 +17,11 @@ export default function TaskList({ game, account, onBack }) {
   const [showCharPicker, setShowCharPicker] = useState(false)
   const [toggling, setToggling] = useState(new Set())
   const [tick, setTick] = useState(0)
+  const [editingChars, setEditingChars] = useState(false)
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 8 } })
   )
 
   useEffect(() => {
@@ -148,21 +149,45 @@ export default function TaskList({ game, account, onBack }) {
             <p className="text-slate-500 text-xs truncate">{account.description}</p>
           )}
           {/* Characters row — draggable */}
-          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={characters.map(c => c.id)} strategy={horizontalListSortingStrategy}>
-                {characters.map(char => (
-                  <SortableCharacter key={char.id} char={char} />
-                ))}
-              </SortableContext>
-            </DndContext>
-            <button
-              onClick={() => setShowCharPicker(true)}
-              className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-600 hover:border-indigo-400 flex items-center justify-center text-slate-500 hover:text-indigo-400 transition-colors"
-            >
-              <Plus size={16} />
-            </button>
-          </div>
+          {characters.length > 0 && (
+            <div className="mt-2">
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={characters.map(c => c.id)} strategy={horizontalListSortingStrategy}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {characters.map(char => (
+                      <SortableCharacter key={char.id} char={char} editing={editingChars} />
+                    ))}
+                    {!editingChars && (
+                      <button
+                        onClick={() => setShowCharPicker(true)}
+                        className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-600 hover:border-indigo-400 flex items-center justify-center text-slate-500 hover:text-indigo-400 transition-colors"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    )}
+                  </div>
+                </SortableContext>
+              </DndContext>
+              <div className="flex items-center gap-2 mt-1.5">
+                <button
+                  onClick={() => setEditingChars(e => !e)}
+                  className={`text-xs px-2 py-0.5 rounded-md transition-colors ${editingChars ? 'text-green-400 bg-green-400/10' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  {editingChars ? '✓ Done' : 'Reorder'}
+                </button>
+              </div>
+            </div>
+          )}
+          {characters.length === 0 && (
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <button
+                onClick={() => setShowCharPicker(true)}
+                className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-600 hover:border-indigo-400 flex items-center justify-center text-slate-500 hover:text-indigo-400 transition-colors"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+          )}
         </div>
         <button onClick={() => setShowManage(true)} className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors flex-shrink-0">
           <Settings size={20} />
