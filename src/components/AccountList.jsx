@@ -78,7 +78,7 @@ export default function AccountList({ game, onSelect, onBack }) {
   async function fetchAccounts() {
     const { data } = await supabase
       .from('game_accounts').select('*').eq('game_id', game.id)
-      .order('sort_order').order('created_at')
+      .order('sort_order', { nullsFirst: false }).order('created_at')
     setAccounts(data || [])
     if (data?.length) {
       const { data: chars } = await supabase
