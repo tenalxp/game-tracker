@@ -4,6 +4,9 @@ import { supabase } from '../lib/supabase'
 import { getGameDayForHour, formatGameDay, getTimeUntilResetHour, daysBetween } from '../lib/dateUtils'
 import ManageTasksModal from './ManageTasksModal'
 import CharacterPickerModal from './CharacterPickerModal'
+import SortableCharacter from './SortableCharacter'
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, horizontalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 
 export default function TaskList({ game, account, onBack }) {
   const [tasks, setTasks] = useState([])
@@ -15,6 +18,11 @@ export default function TaskList({ game, account, onBack }) {
   const [toggling, setToggling] = useState(new Set())
   const [tick, setTick] = useState(0)
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
+  )
+
   useEffect(() => {
     const timer = setInterval(() => setTick(t => t + 1), 1000)
     return () => clearInterval(timer)
@@ -25,9 +33,26 @@ export default function TaskList({ game, account, onBack }) {
   async function fetchCharacters() {
     const { data } = await supabase
       .from('account_characters')
-      .select('characters(id, image_url, name)')
+      .select('character_id, sort_order, characters(id, image_url, name)')
       .eq('account_id', account.id)
+      .order('sort_order')
     setCharacters((data || []).map(r => r.characters).filter(Boolean))
+  }
+
+  async function handleDragEnd(event) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = characters.findIndex(c => c.id === active.id)
+    const newIndex = characters.findIndex(c => c.id === over.id)
+    const newOrder = arrayMove(characters, oldIndex, newIndex)
+    setCharacters(newOrder)
+    // Update sort_order in DB
+    await Promise.all(newOrder.map((char, idx) =>
+      supabase.from('account_characters')
+        .update({ sort_order: idx })
+        .eq('account_id', account.id)
+        .eq('character_id', char.id)
+    ))
   }
 
   async function fetchData() {
@@ -122,11 +147,15 @@ export default function TaskList({ game, account, onBack }) {
           {account.description && (
             <p className="text-slate-500 text-xs truncate">{account.description}</p>
           )}
-          {/* Characters row */}
+          {/* Characters row — draggable */}
           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-            {characters.map(char => (
-              <img key={char.id} src={char.image_url} alt={char.name || ''} className="w-12 h-12 rounded-xl object-cover" />
-            ))}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={characters.map(c => c.id)} strategy={horizontalListSortingStrategy}>
+                {characters.map(char => (
+                  <SortableCharacter key={char.id} char={char} />
+                ))}
+              </SortableContext>
+            </DndContext>
             <button
               onClick={() => setShowCharPicker(true)}
               className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-600 hover:border-indigo-400 flex items-center justify-center text-slate-500 hover:text-indigo-400 transition-colors"
