@@ -1,8 +1,58 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Plus, Camera, Settings2, BookImage } from 'lucide-react'
+import { ArrowLeft, Plus, Camera, Settings2, BookImage, GripVertical } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ManageAccountsModal from './ManageAccountsModal'
 import CharacterLibraryModal from './CharacterLibraryModal'
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
+function SortableAccount({ account, game, characters, onSelect, editing }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: account.id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 1,
+    opacity: isDragging ? 0.8 : 1,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2">
+      {editing && (
+        <div {...attributes} {...listeners} className="p-2 text-slate-500 cursor-grab active:cursor-grabbing touch-none flex-shrink-0">
+          <GripVertical size={20} />
+        </div>
+      )}
+      <button
+        onClick={() => !editing && onSelect(account)}
+        className={`flex-1 flex items-center gap-4 bg-slate-800 rounded-2xl p-4 transition-colors text-left ${editing ? 'opacity-80' : 'hover:bg-slate-700'}`}
+      >
+        <div
+          className="w-14 h-14 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center font-bold text-xl"
+          style={{ backgroundColor: account.image_url ? 'transparent' : game.color + '33', border: `2px solid ${game.color}` }}
+        >
+          {account.image_url
+            ? <img src={account.image_url} alt={account.name} className="w-full h-full object-cover" />
+            : <span style={{ color: game.color }}>{account.name.charAt(0).toUpperCase()}</span>
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-base">{account.name}</div>
+          {account.description && (
+            <div className="text-xs text-slate-400 mt-0.5 truncate">{account.description}</div>
+          )}
+          {(characters[account.id] || []).length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {(characters[account.id] || []).map(char => (
+                <img key={char.id} src={char.image_url} alt="" className="w-9 h-9 rounded-lg object-cover" />
+              ))}
+            </div>
+          )}
+        </div>
+      </button>
+    </div>
+  )
+}
 
 export default function AccountList({ game, onSelect, onBack }) {
   const [accounts, setAccounts] = useState([])
@@ -15,12 +65,20 @@ export default function AccountList({ game, onSelect, onBack }) {
   const [saving, setSaving] = useState(false)
   const [showManage, setShowManage] = useState(false)
   const [showLibrary, setShowLibrary] = useState(false)
+  const [editing, setEditing] = useState(false)
   const fileRef = useRef()
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 8 } })
+  )
 
   useEffect(() => { fetchAccounts() }, [game.id])
 
   async function fetchAccounts() {
-    const { data } = await supabase.from('game_accounts').select('*').eq('game_id', game.id).order('created_at')
+    const { data } = await supabase
+      .from('game_accounts').select('*').eq('game_id', game.id)
+      .order('sort_order').order('created_at')
     setAccounts(data || [])
     if (data?.length) {
       const { data: chars } = await supabase
@@ -35,6 +93,18 @@ export default function AccountList({ game, onSelect, onBack }) {
       setCharacters(map)
     }
     setLoading(false)
+  }
+
+  async function handleDragEnd(event) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = accounts.findIndex(a => a.id === active.id)
+    const newIndex = accounts.findIndex(a => a.id === over.id)
+    const newOrder = arrayMove(accounts, oldIndex, newIndex)
+    setAccounts(newOrder)
+    await Promise.all(newOrder.map((acc, idx) =>
+      supabase.from('game_accounts').update({ sort_order: idx }).eq('id', acc.id)
+    ))
   }
 
   function openAdd() {
@@ -58,6 +128,7 @@ export default function AccountList({ game, onSelect, onBack }) {
       name: name.trim(),
       description: description.trim() || null,
       image_url: imageUrl || null,
+      sort_order: accounts.length,
     })
     setSaving(false); setShowAdd(false); fetchAccounts()
   }
@@ -68,39 +139,37 @@ export default function AccountList({ game, onSelect, onBack }) {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-8">
         <button onClick={onBack} className="p-2 rounded-xl hover:bg-slate-800 transition-colors text-slate-400 hover:text-white flex-shrink-0">
           <ArrowLeft size={22} />
         </button>
-        <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
-          style={{ backgroundColor: game.image_url ? 'transparent' : game.color }}
-        >
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ backgroundColor: game.image_url ? 'transparent' : game.color }}>
           {gameIcon}
         </div>
         <h1 className="text-2xl font-bold flex-1 truncate">{game.name}</h1>
-        <button
-          onClick={() => setShowLibrary(true)}
-          className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors flex-shrink-0"
-          title="Character Library"
-        >
+        <button onClick={() => setShowLibrary(true)} className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors flex-shrink-0" title="Character Library">
           <BookImage size={18} />
         </button>
-        <button
-          onClick={() => setShowManage(true)}
-          className="flex items-center gap-1.5 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg text-sm transition-colors flex-shrink-0"
-        >
-          <Settings2 size={15} />
-          Manage
+        <button onClick={() => setShowManage(true)} className="flex items-center gap-1.5 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg text-sm transition-colors flex-shrink-0">
+          <Settings2 size={15} /> Manage
         </button>
       </div>
 
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-slate-400 text-sm font-medium uppercase tracking-wide">Accounts</h2>
-        <button onClick={openAdd} className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-sm transition-colors" style={{ color: game.color }}>
-          <Plus size={15} /> Add Account
-        </button>
+        <div className="flex items-center gap-2">
+          {accounts.length > 1 && (
+            <button
+              onClick={() => setEditing(e => !e)}
+              className={`text-xs px-2 py-1 rounded-lg transition-colors ${editing ? 'text-green-400 bg-green-400/10' : 'text-slate-400 hover:text-white bg-slate-800'}`}
+            >
+              {editing ? '✓ Done' : 'Reorder'}
+            </button>
+          )}
+          <button onClick={openAdd} className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-sm transition-colors" style={{ color: game.color }}>
+            <Plus size={15} /> Add Account
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -113,77 +182,40 @@ export default function AccountList({ game, onSelect, onBack }) {
           <p>No accounts yet.</p>
         </div>
       ) : (
-        <div className="grid gap-3">
-          {accounts.map(account => (
-            <button
-              key={account.id}
-              onClick={() => onSelect(account)}
-              className="w-full flex items-center gap-4 bg-slate-800 hover:bg-slate-700 rounded-2xl p-4 transition-colors text-left"
-            >
-              <div
-                className="w-14 h-14 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center font-bold text-xl"
-                style={{ backgroundColor: account.image_url ? 'transparent' : game.color + '33', border: `2px solid ${game.color}` }}
-              >
-                {account.image_url
-                  ? <img src={account.image_url} alt={account.name} className="w-full h-full object-cover" />
-                  : <span style={{ color: game.color }}>{account.name.charAt(0).toUpperCase()}</span>
-                }
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-base">{account.name}</div>
-                {account.description && (
-                  <div className="text-xs text-slate-400 mt-0.5 truncate">{account.description}</div>
-                )}
-                {/* Character thumbnails */}
-                {(characters[account.id] || []).length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {(characters[account.id] || []).map(char => (
-                      <img key={char.id} src={char.image_url} alt="" className="w-9 h-9 rounded-lg object-cover" />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={accounts.map(a => a.id)} strategy={verticalListSortingStrategy}>
+            <div className="flex flex-col gap-3">
+              {accounts.map(account => (
+                <SortableAccount
+                  key={account.id}
+                  account={account}
+                  game={game}
+                  characters={characters}
+                  onSelect={onSelect}
+                  editing={editing}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
-      {/* Add Account Modal */}
       {showAdd && (
         <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-4">
           <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-6">
             <h2 className="text-lg font-bold mb-5">Add New Account</h2>
-
             <div className="flex justify-center mb-5">
               <input ref={fileRef} type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={handleFile} className="hidden" />
               <button onClick={() => fileRef.current.click()} className="relative group">
                 <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center bg-slate-700 border-2 border-slate-600 group-hover:border-indigo-500 transition-colors">
-                  {imageUrl
-                    ? <img src={imageUrl} alt="preview" className="w-full h-full object-cover" />
-                    : <Camera size={28} className="text-slate-400 group-hover:text-indigo-400 transition-colors" />
-                  }
+                  {imageUrl ? <img src={imageUrl} alt="preview" className="w-full h-full object-cover" /> : <Camera size={28} className="text-slate-400 group-hover:text-indigo-400 transition-colors" />}
                 </div>
-                <div className="absolute bottom-0 right-0 bg-indigo-600 rounded-full p-1.5">
-                  <Plus size={10} className="text-white" />
-                </div>
+                <div className="absolute bottom-0 right-0 bg-indigo-600 rounded-full p-1.5"><Plus size={10} className="text-white" /></div>
               </button>
             </div>
-            {imageUrl && (
-              <button onClick={() => setImageUrl('')} className="w-full text-xs text-red-400 text-center mb-3 hover:text-red-300">Remove image</button>
-            )}
-
-            <input
-              type="text" placeholder="Account name" value={name}
-              onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()}
-              autoFocus
-              className="w-full bg-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-400 outline-none focus:ring-2 mb-3"
-            />
-            <textarea
-              placeholder="Description (optional)" value={description}
-              onChange={e => setDescription(e.target.value)}
-              rows={2}
-              className="w-full bg-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-400 outline-none focus:ring-2 mb-4 resize-none text-sm"
-            />
+            {imageUrl && <button onClick={() => setImageUrl('')} className="w-full text-xs text-red-400 text-center mb-3 hover:text-red-300">Remove image</button>}
+            <input type="text" placeholder="Account name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()} autoFocus className="w-full bg-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-400 outline-none focus:ring-2 mb-3" />
+            <textarea placeholder="Description (optional)" value={description} onChange={e => setDescription(e.target.value)} rows={2} className="w-full bg-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-400 outline-none focus:ring-2 mb-4 resize-none text-sm" />
             <div className="flex gap-3">
               <button onClick={() => setShowAdd(false)} className="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-medium transition-colors">Cancel</button>
               <button onClick={save} disabled={saving || !name.trim()} className="flex-1 py-3 rounded-xl font-medium transition-colors disabled:opacity-50 text-white" style={{ backgroundColor: game.color }}>
@@ -194,20 +226,8 @@ export default function AccountList({ game, onSelect, onBack }) {
         </div>
       )}
 
-      {showManage && (
-        <ManageAccountsModal
-          game={game}
-          accounts={accounts}
-          onClose={() => { setShowManage(false); fetchAccounts() }}
-          onRefresh={fetchAccounts}
-        />
-      )}
-      {showLibrary && (
-        <CharacterLibraryModal
-          game={game}
-          onClose={() => { setShowLibrary(false); fetchAccounts() }}
-        />
-      )}
+      {showManage && <ManageAccountsModal game={game} accounts={accounts} onClose={() => { setShowManage(false); fetchAccounts() }} onRefresh={fetchAccounts} />}
+      {showLibrary && <CharacterLibraryModal game={game} onClose={() => { setShowLibrary(false); fetchAccounts() }} />}
     </div>
   )
 }
