@@ -85,18 +85,35 @@ export default function TaskList({ game, account, onBack }) {
   return (
     <div className="max-w-lg mx-auto px-4 py-6">
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={onBack} className="p-2 rounded-xl hover:bg-slate-800 transition-colors text-slate-400 hover:text-white">
+        <button onClick={onBack} className="p-2 rounded-xl hover:bg-slate-800 transition-colors text-slate-400 hover:text-white flex-shrink-0">
           <ArrowLeft size={22} />
         </button>
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md flex-shrink-0 overflow-hidden">{gameIcon}</div>
-            <span className="text-slate-400 text-sm">{game.name}</span>
-          </div>
-          <h1 className="font-bold text-lg leading-tight">{account.name}</h1>
+        {/* Account avatar */}
+        <div
+          className="w-14 h-14 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center font-bold text-xl"
+          style={{
+            backgroundColor: account.image_url ? 'transparent' : game.color + '33',
+            border: `2px solid ${game.color}`,
+          }}
+        >
+          {account.image_url
+            ? <img src={account.image_url} alt={account.name} className="w-full h-full object-cover" />
+            : <span style={{ color: game.color }}>{account.name.charAt(0).toUpperCase()}</span>
+          }
         </div>
-        <div className="flex-1" />
-        <button onClick={() => setShowManage(true)} className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-4 rounded flex-shrink-0 overflow-hidden">
+              {gameIcon}
+            </div>
+            <span className="text-slate-400 text-xs truncate">{game.name}</span>
+          </div>
+          <h1 className="font-bold text-xl leading-tight truncate">{account.name}</h1>
+          {account.description && (
+            <p className="text-slate-500 text-xs truncate">{account.description}</p>
+          )}
+        </div>
+        <button onClick={() => setShowManage(true)} className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors flex-shrink-0">
           <Settings size={20} />
         </button>
       </div>
