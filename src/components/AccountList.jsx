@@ -9,26 +9,22 @@ export default function AccountList({ game, onSelect, onBack }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editAccount, setEditAccount] = useState(null)
   const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState(null)
   const [showTasks, setShowTasks] = useState(false)
 
-  useEffect(() => {
-    fetchAccounts()
-  }, [game.id])
+  useEffect(() => { fetchAccounts() }, [game.id])
 
   async function fetchAccounts() {
-    const { data } = await supabase
-      .from('game_accounts')
-      .select('*')
-      .eq('game_id', game.id)
-      .order('created_at')
+    const { data } = await supabase.from('game_accounts').select('*').eq('game_id', game.id).order('created_at')
     setAccounts(data || [])
     setLoading(false)
   }
 
   function openAdd() {
     setName('')
+    setDescription('')
     setEditAccount(null)
     setShowAdd(true)
   }
@@ -36,6 +32,7 @@ export default function AccountList({ game, onSelect, onBack }) {
   function openEdit(e, account) {
     e.stopPropagation()
     setName(account.name)
+    setDescription(account.description || '')
     setEditAccount(account)
     setShowAdd(true)
   }
@@ -43,10 +40,11 @@ export default function AccountList({ game, onSelect, onBack }) {
   async function save() {
     if (!name.trim()) return
     setSaving(true)
+    const payload = { name: name.trim(), description: description.trim() || null }
     if (editAccount) {
-      await supabase.from('game_accounts').update({ name: name.trim() }).eq('id', editAccount.id)
+      await supabase.from('game_accounts').update(payload).eq('id', editAccount.id)
     } else {
-      await supabase.from('game_accounts').insert({ game_id: game.id, name: name.trim() })
+      await supabase.from('game_accounts').insert({ game_id: game.id, ...payload })
     }
     setSaving(false)
     setShowAdd(false)
@@ -118,7 +116,12 @@ export default function AccountList({ game, onSelect, onBack }) {
               >
                 <span style={{ color: game.color }}>{account.name.charAt(0).toUpperCase()}</span>
               </div>
-              <span className="flex-1 font-semibold">{account.name}</span>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold">{account.name}</div>
+                {account.description && (
+                  <div className="text-xs text-slate-400 mt-0.5 truncate">{account.description}</div>
+                )}
+              </div>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <span onClick={(e) => openEdit(e, account)} className="p-2 rounded-lg hover:bg-slate-600 text-slate-400 hover:text-white transition-colors">
                   <Pencil size={15} />
@@ -143,7 +146,14 @@ export default function AccountList({ game, onSelect, onBack }) {
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && save()}
               autoFocus
-              className="w-full bg-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-400 outline-none focus:ring-2 mb-4"
+              className="w-full bg-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-400 outline-none focus:ring-2 mb-3"
+            />
+            <textarea
+              placeholder="Description (optional)"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={2}
+              className="w-full bg-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-400 outline-none focus:ring-2 mb-4 resize-none text-sm"
             />
             <div className="flex gap-3">
               <button onClick={() => setShowAdd(false)} className="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-medium transition-colors">Cancel</button>
