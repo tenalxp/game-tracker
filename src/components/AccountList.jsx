@@ -5,6 +5,7 @@ import ManageAccountsModal from './ManageAccountsModal'
 
 export default function AccountList({ game, onSelect, onBack }) {
   const [accounts, setAccounts] = useState([])
+  const [characters, setCharacters] = useState({})
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
@@ -19,6 +20,19 @@ export default function AccountList({ game, onSelect, onBack }) {
   async function fetchAccounts() {
     const { data } = await supabase.from('game_accounts').select('*').eq('game_id', game.id).order('created_at')
     setAccounts(data || [])
+    if (data?.length) {
+      const { data: chars } = await supabase
+        .from('account_characters')
+        .select('*')
+        .in('account_id', data.map(a => a.id))
+        .order('sort_order')
+      const map = {}
+      for (const c of (chars || [])) {
+        if (!map[c.account_id]) map[c.account_id] = []
+        map[c.account_id].push(c)
+      }
+      setCharacters(map)
+    }
     setLoading(false)
   }
 
@@ -112,6 +126,14 @@ export default function AccountList({ game, onSelect, onBack }) {
                 {account.description && (
                   <div className="text-xs text-slate-400 mt-0.5 truncate">{account.description}</div>
                 )}
+                {/* Character thumbnails */}
+                {(characters[account.id] || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {(characters[account.id] || []).map(char => (
+                      <img key={char.id} src={char.image_url} alt="" className="w-9 h-9 rounded-lg object-cover" />
+                    ))}
+                  </div>
+                )}
               </div>
             </button>
           ))}
@@ -168,7 +190,7 @@ export default function AccountList({ game, onSelect, onBack }) {
         <ManageAccountsModal
           game={game}
           accounts={accounts}
-          onClose={() => setShowManage(false)}
+          onClose={() => { setShowManage(false); fetchAccounts() }}
           onRefresh={fetchAccounts}
         />
       )}
