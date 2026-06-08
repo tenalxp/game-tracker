@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Plus, Camera, Settings2 } from 'lucide-react'
+import { ArrowLeft, Plus, Camera, Settings2, BookImage } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ManageAccountsModal from './ManageAccountsModal'
+import CharacterLibraryModal from './CharacterLibraryModal'
 
 export default function AccountList({ game, onSelect, onBack }) {
   const [accounts, setAccounts] = useState([])
@@ -13,6 +14,7 @@ export default function AccountList({ game, onSelect, onBack }) {
   const [imageUrl, setImageUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [showManage, setShowManage] = useState(false)
+  const [showLibrary, setShowLibrary] = useState(false)
   const fileRef = useRef()
 
   useEffect(() => { fetchAccounts() }, [game.id])
@@ -78,6 +80,13 @@ export default function AccountList({ game, onSelect, onBack }) {
           {gameIcon}
         </div>
         <h1 className="text-2xl font-bold flex-1 truncate">{game.name}</h1>
+        <button
+          onClick={() => setShowLibrary(true)}
+          className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors flex-shrink-0"
+          title="Character Library"
+        >
+          <BookImage size={18} />
+        </button>
         <button
           onClick={() => setShowManage(true)}
           className="flex items-center gap-1.5 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg text-sm transition-colors flex-shrink-0"
@@ -191,6 +200,12 @@ export default function AccountList({ game, onSelect, onBack }) {
           accounts={accounts}
           onClose={() => { setShowManage(false); fetchAccounts() }}
           onRefresh={fetchAccounts}
+        />
+      )}
+      {showLibrary && (
+        <CharacterLibraryModal
+          game={game}
+          onClose={() => { setShowLibrary(false); fetchAccounts() }}
         />
       )}
     </div>

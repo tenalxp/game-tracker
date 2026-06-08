@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Settings, CheckCircle2, Circle, ClipboardList } from 'lucide-react'
+import { ArrowLeft, Settings, CheckCircle2, Circle, ClipboardList, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { getGameDayForHour, formatGameDay, getTimeUntilResetHour, daysBetween } from '../lib/dateUtils'
 import ManageTasksModal from './ManageTasksModal'
+import CharacterPickerModal from './CharacterPickerModal'
 
 export default function TaskList({ game, account, onBack }) {
   const [tasks, setTasks] = useState([])
   const [completionMap, setCompletionMap] = useState({})
+  const [characters, setCharacters] = useState([])
   const [loading, setLoading] = useState(true)
   const [showManage, setShowManage] = useState(false)
+  const [showCharPicker, setShowCharPicker] = useState(false)
   const [toggling, setToggling] = useState(new Set())
   const [tick, setTick] = useState(0)
 
@@ -19,7 +22,16 @@ export default function TaskList({ game, account, onBack }) {
 
   useEffect(() => { fetchData() }, [account.id])
 
+  async function fetchCharacters() {
+    const { data } = await supabase
+      .from('account_characters')
+      .select('characters(id, image_url, name)')
+      .eq('account_id', account.id)
+    setCharacters((data || []).map(r => r.characters).filter(Boolean))
+  }
+
   async function fetchData() {
+    fetchCharacters()
     const [tasksRes, completionsRes] = await Promise.all([
       supabase.from('game_tasks').select('*').eq('game_id', game.id).eq('enabled', true).order('sort_order'),
       supabase.from('task_completions').select('task_id, game_day').eq('account_id', account.id).order('game_day', { ascending: false }),
@@ -103,15 +115,25 @@ export default function TaskList({ game, account, onBack }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-4 rounded flex-shrink-0 overflow-hidden">
-              {gameIcon}
-            </div>
+            <div className="w-4 h-4 rounded flex-shrink-0 overflow-hidden">{gameIcon}</div>
             <span className="text-slate-400 text-xs truncate">{game.name}</span>
           </div>
           <h1 className="font-bold text-xl leading-tight truncate">{account.name}</h1>
           {account.description && (
             <p className="text-slate-500 text-xs truncate">{account.description}</p>
           )}
+          {/* Characters row */}
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            {characters.map(char => (
+              <img key={char.id} src={char.image_url} alt={char.name || ''} className="w-7 h-7 rounded-lg object-cover" />
+            ))}
+            <button
+              onClick={() => setShowCharPicker(true)}
+              className="w-7 h-7 rounded-lg border border-dashed border-slate-600 hover:border-indigo-400 flex items-center justify-center text-slate-500 hover:text-indigo-400 transition-colors"
+            >
+              <Plus size={13} />
+            </button>
+          </div>
         </div>
         <button onClick={() => setShowManage(true)} className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors flex-shrink-0">
           <Settings size={20} />
@@ -186,6 +208,14 @@ export default function TaskList({ game, account, onBack }) {
       )}
 
       {showManage && <ManageTasksModal game={game} onClose={() => { setShowManage(false); fetchData() }} />}
+      {showCharPicker && (
+        <CharacterPickerModal
+          game={game}
+          account={account}
+          onClose={() => setShowCharPicker(false)}
+          onSave={() => { setShowCharPicker(false); fetchCharacters() }}
+        />
+      )}
     </div>
   )
 }
