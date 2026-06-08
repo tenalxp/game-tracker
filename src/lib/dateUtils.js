@@ -19,6 +19,12 @@ export function formatGameDay(dateStr) {
   return `${d}/${m}/${y}`
 }
 
+export function daysBetween(dateStr1, dateStr2) {
+  const d1 = new Date(dateStr1)
+  const d2 = new Date(dateStr2)
+  return Math.floor((d2 - d1) / (1000 * 60 * 60 * 24))
+}
+
 export function getTimeUntilReset() {
   const now = new Date()
   const utcMs = now.getTime() + now.getTimezoneOffset() * 60 * 1000

@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
+import { X, Plus, Trash2, ToggleLeft, ToggleRight, Pencil, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 export default function ManageTasksModal({ game, onClose }) {
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [newTask, setNewTask] = useState('')
+  const [newResetDays, setNewResetDays] = useState(1)
   const [saving, setSaving] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editResetDays, setEditResetDays] = useState(1)
 
   useEffect(() => {
     fetchTasks()
@@ -31,8 +34,10 @@ export default function ManageTasksModal({ game, onClose }) {
       name: newTask.trim(),
       enabled: true,
       sort_order: maxOrder,
+      reset_days: newResetDays,
     })
     setNewTask('')
+    setNewResetDays(1)
     setSaving(false)
     fetchTasks()
   }
@@ -42,14 +47,26 @@ export default function ManageTasksModal({ game, onClose }) {
     setTasks(prev => prev.map(t => t.id === task.id ? { ...t, enabled: !t.enabled } : t))
   }
 
+  async function saveResetDays(task) {
+    await supabase.from('game_tasks').update({ reset_days: editResetDays }).eq('id', task.id)
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, reset_days: editResetDays } : t))
+    setEditingId(null)
+  }
+
   async function deleteTask(id) {
     await supabase.from('game_tasks').delete().eq('id', id)
     setTasks(prev => prev.filter(t => t.id !== id))
   }
 
+  function resetLabel(days) {
+    if (days === 1) return 'Daily'
+    if (days === 7) return 'Weekly'
+    return `Every ${days}d`
+  }
+
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-2xl w-full max-w-sm flex flex-col max-h-[80vh]">
+      <div className="bg-slate-800 rounded-2xl w-full max-w-sm flex flex-col max-h-[85vh]">
         <div className="flex items-center justify-between p-5 border-b border-slate-700">
           <div>
             <h2 className="font-bold text-lg">Manage Daily Tasks</h2>
@@ -68,23 +85,55 @@ export default function ManageTasksModal({ game, onClose }) {
           ) : (
             <div className="space-y-2">
               {tasks.map(task => (
-                <div key={task.id} className="flex items-center gap-3 bg-slate-700 rounded-xl px-4 py-3">
-                  <span className={`flex-1 text-sm ${!task.enabled ? 'line-through text-slate-500' : 'text-white'}`}>
-                    {task.name}
-                  </span>
-                  <button
-                    onClick={() => toggleTask(task)}
-                    className="text-slate-400 hover:text-white transition-colors flex-shrink-0"
-                    title={task.enabled ? 'Disable task' : 'Enable task'}
-                  >
-                    {task.enabled
-                      ? <ToggleRight size={24} style={{ color: game.color }} />
-                      : <ToggleLeft size={24} />
-                    }
-                  </button>
-                  <button onClick={() => deleteTask(task.id)} className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0">
-                    <Trash2 size={16} />
-                  </button>
+                <div key={task.id} className="bg-slate-700 rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className={`flex-1 text-sm ${!task.enabled ? 'line-through text-slate-500' : 'text-white'}`}>
+                      {task.name}
+                    </span>
+                    <button
+                      onClick={() => toggleTask(task)}
+                      className="text-slate-400 hover:text-white transition-colors flex-shrink-0"
+                    >
+                      {task.enabled
+                        ? <ToggleRight size={22} style={{ color: game.color }} />
+                        : <ToggleLeft size={22} />
+                      }
+                    </button>
+                    <button onClick={() => deleteTask(task.id)} className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+
+                  {/* Reset days row */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs text-slate-500">Reset every</span>
+                    {editingId === task.id ? (
+                      <>
+                        <input
+                          type="number"
+                          min={1}
+                          value={editResetDays}
+                          onChange={e => setEditResetDays(Number(e.target.value))}
+                          className="w-16 bg-slate-600 rounded-lg px-2 py-1 text-xs text-white outline-none focus:ring-1"
+                          style={{ '--tw-ring-color': game.color }}
+                          autoFocus
+                        />
+                        <span className="text-xs text-slate-500">days</span>
+                        <button onClick={() => saveResetDays(task)} className="text-xs text-green-400 hover:text-green-300 ml-auto">
+                          <Check size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => { setEditingId(task.id); setEditResetDays(task.reset_days || 1) }}
+                        className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-md hover:bg-slate-600 transition-colors"
+                        style={{ color: game.color }}
+                      >
+                        {resetLabel(task.reset_days || 1)}
+                        <Pencil size={10} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -92,7 +141,7 @@ export default function ManageTasksModal({ game, onClose }) {
         </div>
 
         <div className="p-5 border-t border-slate-700">
-          <div className="flex gap-2">
+          <div className="flex gap-2 mb-2">
             <input
               type="text"
               placeholder="New task name"
@@ -111,9 +160,17 @@ export default function ManageTasksModal({ game, onClose }) {
               Add
             </button>
           </div>
-          <p className="text-slate-500 text-xs mt-2">
-            Disable a task to hide it from the checklist temporarily.
-          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">Reset every</span>
+            <input
+              type="number"
+              min={1}
+              value={newResetDays}
+              onChange={e => setNewResetDays(Number(e.target.value))}
+              className="w-16 bg-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none"
+            />
+            <span className="text-xs text-slate-500">days (default: 1 = daily)</span>
+          </div>
         </div>
       </div>
     </div>

@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Settings, CheckCircle2, Circle, ClipboardList } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { getGameDay, formatGameDay, getTimeUntilReset } from '../lib/dateUtils'
+import { getGameDay, formatGameDay, getTimeUntilReset, daysBetween } from '../lib/dateUtils'
 import ManageTasksModal from './ManageTasksModal'
 
 export default function TaskList({ game, account, onBack }) {
   const [tasks, setTasks] = useState([])
-  const [completions, setCompletions] = useState(new Set())
+  const [completionMap, setCompletionMap] = useState({}) // taskId -> latest game_day
   const [loading, setLoading] = useState(true)
   const [showManage, setShowManage] = useState(false)
   const [toggling, setToggling] = useState(new Set())
@@ -25,28 +25,67 @@ export default function TaskList({ game, account, onBack }) {
   async function fetchData() {
     const [tasksRes, completionsRes] = await Promise.all([
       supabase.from('game_tasks').select('*').eq('game_id', game.id).eq('enabled', true).order('sort_order'),
-      supabase.from('task_completions').select('task_id').eq('account_id', account.id).eq('game_day', gameDay),
+      supabase.from('task_completions')
+        .select('task_id, game_day')
+        .eq('account_id', account.id)
+        .order('game_day', { ascending: false }),
     ])
+
     setTasks(tasksRes.data || [])
-    setCompletions(new Set((completionsRes.data || []).map(c => c.task_id)))
+
+    // Build map: taskId -> latest game_day completed
+    const map = {}
+    for (const c of (completionsRes.data || [])) {
+      if (!map[c.task_id]) map[c.task_id] = c.game_day
+    }
+    setCompletionMap(map)
     setLoading(false)
+  }
+
+  function isDone(task) {
+    const lastDay = completionMap[task.id]
+    if (!lastDay) return false
+    const resetDays = task.reset_days || 1
+    if (resetDays === 1) return lastDay === gameDay
+    return daysBetween(lastDay, gameDay) < resetDays
+  }
+
+  function resetLabel(task) {
+    const days = task.reset_days || 1
+    if (days === 1) return null
+    const lastDay = completionMap[task.id]
+    if (!lastDay || !isDone(task)) return `Every ${days}d`
+    const remaining = days - daysBetween(lastDay, gameDay)
+    return `Resets in ${remaining}d`
   }
 
   async function toggleCompletion(task) {
     if (toggling.has(task.id)) return
     setToggling(prev => new Set([...prev, task.id]))
-    const done = completions.has(task.id)
+
+    const done = isDone(task)
     if (done) {
-      await supabase.from('task_completions').delete().eq('account_id', account.id).eq('task_id', task.id).eq('game_day', gameDay)
-      setCompletions(prev => { const s = new Set(prev); s.delete(task.id); return s })
+      // delete the latest completion
+      const lastDay = completionMap[task.id]
+      await supabase.from('task_completions')
+        .delete()
+        .eq('account_id', account.id)
+        .eq('task_id', task.id)
+        .eq('game_day', lastDay)
+      setCompletionMap(prev => { const m = { ...prev }; delete m[task.id]; return m })
     } else {
-      await supabase.from('task_completions').upsert({ account_id: account.id, task_id: task.id, game_day: gameDay })
-      setCompletions(prev => new Set([...prev, task.id]))
+      await supabase.from('task_completions').upsert({
+        account_id: account.id,
+        task_id: task.id,
+        game_day: gameDay,
+      })
+      setCompletionMap(prev => ({ ...prev, [task.id]: gameDay }))
     }
+
     setToggling(prev => { const s = new Set(prev); s.delete(task.id); return s })
   }
 
-  const doneCount = tasks.filter(t => completions.has(t.id)).length
+  const doneCount = tasks.filter(t => isDone(t)).length
   const progress = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0
 
   const gameIcon = game.image_url
@@ -92,7 +131,7 @@ export default function TaskList({ game, account, onBack }) {
           />
         </div>
         {progress === 100 && tasks.length > 0 && (
-          <p className="text-green-400 text-sm text-center mt-2 font-medium">✓ All dailies done!</p>
+          <p className="text-green-400 text-sm text-center mt-2 font-medium">✓ All done!</p>
         )}
       </div>
 
@@ -101,16 +140,15 @@ export default function TaskList({ game, account, onBack }) {
       ) : tasks.length === 0 ? (
         <div className="text-center py-20 text-slate-500">
           <ClipboardList size={40} className="mx-auto mb-3 opacity-30" />
-          <p>No daily tasks yet.</p>
-          <button onClick={() => setShowManage(true)} className="mt-3 text-sm underline" style={{ color: game.color }}>
-            Add tasks
-          </button>
+          <p>No tasks yet.</p>
+          <button onClick={() => setShowManage(true)} className="mt-3 text-sm underline" style={{ color: game.color }}>Add tasks</button>
         </div>
       ) : (
         <div className="space-y-2">
           {tasks.map(task => {
-            const done = completions.has(task.id)
+            const done = isDone(task)
             const busy = toggling.has(task.id)
+            const label = resetLabel(task)
             return (
               <button
                 key={task.id}
@@ -122,9 +160,16 @@ export default function TaskList({ game, account, onBack }) {
                   ? <CheckCircle2 size={24} style={{ color: game.color }} className="flex-shrink-0" />
                   : <Circle size={24} className="text-slate-500 flex-shrink-0" />
                 }
-                <span className={`font-medium ${done ? 'line-through text-slate-400' : 'text-white'}`}>
-                  {task.name}
-                </span>
+                <div className="flex-1">
+                  <div className={`font-medium ${done ? 'line-through text-slate-400' : 'text-white'}`}>
+                    {task.name}
+                  </div>
+                  {label && (
+                    <div className="text-xs mt-0.5" style={{ color: done ? '#6b7280' : game.color }}>
+                      {label}
+                    </div>
+                  )}
+                </div>
               </button>
             )
           })}
