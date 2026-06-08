@@ -1,29 +1,21 @@
 import { useState, useRef } from 'react'
-import { Plus, Gamepad2, Pencil, Trash2, Check, Image, Palette } from 'lucide-react'
+import { Plus, Gamepad2, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
-const COLORS = [
-  '#6366f1', '#8b5cf6', '#ec4899', '#ef4444',
-  '#f97316', '#eab308', '#22c55e', '#14b8a6',
-  '#3b82f6', '#06b6d4',
-]
+const DEFAULT_COLOR = '#6366f1'
 
 export default function GameList({ games, onSelect, onRefresh }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editGame, setEditGame] = useState(null)
   const [name, setName] = useState('')
-  const [color, setColor] = useState(COLORS[0])
   const [imageUrl, setImageUrl] = useState('')
-  const [tab, setTab] = useState('color') // 'color' | 'image'
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState(null)
   const fileRef = useRef()
 
   function openAdd() {
     setName('')
-    setColor(COLORS[0])
     setImageUrl('')
-    setTab('color')
     setEditGame(null)
     setShowAdd(true)
   }
@@ -31,9 +23,7 @@ export default function GameList({ games, onSelect, onRefresh }) {
   function openEdit(e, game) {
     e.stopPropagation()
     setName(game.name)
-    setColor(game.color || COLORS[0])
     setImageUrl(game.image_url || '')
-    setTab(game.image_url ? 'image' : 'color')
     setEditGame(game)
     setShowAdd(true)
   }
@@ -51,8 +41,8 @@ export default function GameList({ games, onSelect, onRefresh }) {
     setSaving(true)
     const payload = {
       name: name.trim(),
-      color: tab === 'color' ? color : COLORS[0],
-      image_url: tab === 'image' ? imageUrl : null,
+      color: DEFAULT_COLOR,
+      image_url: imageUrl || null,
     }
     if (editGame) {
       await supabase.from('games').update(payload).eq('id', editGame.id)
@@ -99,13 +89,10 @@ export default function GameList({ games, onSelect, onRefresh }) {
               onClick={() => onSelect(game)}
               className="w-full flex items-center gap-4 bg-slate-800 hover:bg-slate-700 rounded-xl p-4 transition-colors text-left group"
             >
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden"
-                style={{ backgroundColor: game.image_url ? 'transparent' : game.color }}
-              >
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden bg-slate-700">
                 {game.image_url
                   ? <img src={game.image_url} alt={game.name} className="w-full h-full object-cover rounded-xl" />
-                  : game.name.charAt(0).toUpperCase()
+                  : <span>{game.name.charAt(0).toUpperCase()}</span>
                 }
               </div>
               <span className="flex-1 font-semibold text-lg">{game.name}</span>
@@ -143,55 +130,22 @@ export default function GameList({ games, onSelect, onRefresh }) {
               className="w-full bg-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500 mb-4"
             />
 
-            {/* Tab */}
-            <div className="flex bg-slate-700 rounded-xl p-1 mb-4">
-              <button
-                onClick={() => setTab('color')}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-colors ${tab === 'color' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'}`}
-              >
-                <Palette size={14} /> Color
-              </button>
-              <button
-                onClick={() => setTab('image')}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-colors ${tab === 'image' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'}`}
-              >
-                <Image size={14} /> Image
-              </button>
-            </div>
-
-            {tab === 'color' ? (
-              <div className="flex flex-wrap gap-2 mb-6">
-                {COLORS.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => setColor(c)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110"
-                    style={{ backgroundColor: c }}
-                  >
-                    {color === c && <Check size={14} className="text-white" />}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="mb-6">
-                <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                <button
-                  onClick={() => fileRef.current.click()}
-                  className="w-full bg-slate-700 hover:bg-slate-600 rounded-xl py-3 text-sm text-slate-300 transition-colors mb-2"
-                >
-                  Choose image from device
-                </button>
-                {imageUrl && (
-                  <div className="flex items-center gap-3 mt-2">
-                    <img src={imageUrl} alt="preview" className="w-12 h-12 rounded-xl object-cover" />
-                    <span className="text-slate-400 text-sm">Image selected</span>
-                    <button onClick={() => setImageUrl('')} className="text-red-400 text-sm ml-auto">Remove</button>
-                  </div>
-                )}
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+            <button
+              onClick={() => fileRef.current.click()}
+              className="w-full bg-slate-700 hover:bg-slate-600 rounded-xl py-3 text-sm text-slate-300 transition-colors mb-3"
+            >
+              {imageUrl ? 'Change image' : 'Choose image from device'}
+            </button>
+            {imageUrl && (
+              <div className="flex items-center gap-3 mb-4">
+                <img src={imageUrl} alt="preview" className="w-12 h-12 rounded-xl object-cover" />
+                <span className="text-slate-400 text-sm flex-1">Image selected</span>
+                <button onClick={() => setImageUrl('')} className="text-red-400 text-sm">Remove</button>
               </div>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 mt-2">
               <button
                 onClick={() => setShowAdd(false)}
                 className="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-medium transition-colors"
