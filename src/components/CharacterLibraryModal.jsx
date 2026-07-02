@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Plus, Trash2, Pencil, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import DraggableImage from './DraggableImage'
 
 export default function CharacterLibraryModal({ game, onClose }) {
   const [characters, setCharacters] = useState([])
@@ -51,8 +52,12 @@ export default function CharacterLibraryModal({ game, onClose }) {
     setEditingId(null)
   }
 
+  async function savePosition(id, pos) {
+    await supabase.from('characters').update({ image_position: pos }).eq('id', id)
+    setCharacters(prev => prev.map(c => c.id === id ? { ...c, image_position: pos } : c))
+  }
+
   async function deleteChar(char) {
-    // Delete from storage
     const path = char.image_url.split('/characters/')[1]
     if (path) await supabase.storage.from('characters').remove([path])
     await supabase.from('characters').delete().eq('id', char.id)
@@ -61,27 +66,30 @@ export default function CharacterLibraryModal({ game, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[60] p-4">
-      <div className="bg-slate-800 rounded-2xl w-full max-w-sm flex flex-col max-h-[85vh]">
-        <div className="flex items-center justify-between p-5 border-b border-slate-700">
+      <div className="bg-white/5 backdrop-blur-md rounded-2xl w-full max-w-sm flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between p-5 border-b border-white/10">
           <div>
             <h2 className="font-bold text-lg">Character Library</h2>
             <p className="text-slate-400 text-sm">{game.name}</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-700 text-slate-400 hover:text-white">
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/8 text-slate-400 hover:text-white">
             <X size={20} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
-            <div className="text-slate-500 text-center py-8">Loading...</div>
+            <div className="text-slate-400 text-center py-8">Loading...</div>
           ) : (
             <div className="grid grid-cols-3 gap-3">
               {characters.map(char => (
                 <div key={char.id} className="relative group">
-                  <div className="aspect-square rounded-xl overflow-hidden bg-slate-700">
-                    <img src={char.image_url} alt={char.name || ''} className="w-full h-full object-cover" />
-                  </div>
+                  <DraggableImage
+                    src={char.image_url}
+                    position={char.image_position || '50% 50%'}
+                    onPositionChange={pos => savePosition(char.id, pos)}
+                    divClassName="aspect-square rounded-xl bg-white/8"
+                  />
                   {editingId === char.id ? (
                     <div className="flex items-center gap-1 mt-1">
                       <input
@@ -91,7 +99,7 @@ export default function CharacterLibraryModal({ game, onClose }) {
                         onKeyDown={e => e.key === 'Enter' && saveName(char.id)}
                         autoFocus
                         placeholder="Name"
-                        className="flex-1 bg-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none min-w-0"
+                        className="flex-1 bg-white/8 rounded-lg px-2 py-1 text-xs text-white outline-none min-w-0"
                       />
                       <button onClick={() => saveName(char.id)} className="text-green-400 flex-shrink-0">
                         <Check size={13} />
@@ -115,11 +123,10 @@ export default function CharacterLibraryModal({ game, onClose }) {
                 </div>
               ))}
 
-              {/* Add button */}
               <button
                 onClick={() => fileRef.current.click()}
                 disabled={uploading}
-                className="aspect-square rounded-xl border-2 border-dashed border-slate-600 hover:border-indigo-400 flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-indigo-400 transition-colors disabled:opacity-50"
+                className="aspect-square rounded-xl border-2 border-dashed border-white/15 hover:border-indigo-400 flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-indigo-400 transition-colors disabled:opacity-50"
               >
                 <Plus size={20} />
                 <span className="text-xs">{uploading ? 'Uploading...' : 'Add'}</span>

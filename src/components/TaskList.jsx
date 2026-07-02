@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Settings, CheckCircle2, Circle, ClipboardList, Plus } from 'lucide-react'
+import { ArrowLeft, Settings, CheckCircle2, Circle, ClipboardList } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { getGameDayForHour, formatGameDay, getTimeUntilResetHour, daysBetween } from '../lib/dateUtils'
 import ManageTasksModal from './ManageTasksModal'
-import CharacterPickerModal from './CharacterPickerModal'
+import DraggableImage from './DraggableImage'
 import SortableCharacter from './SortableCharacter'
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
@@ -14,11 +14,8 @@ export default function TaskList({ game, account, onBack }) {
   const [characters, setCharacters] = useState([])
   const [loading, setLoading] = useState(true)
   const [showManage, setShowManage] = useState(false)
-  const [showCharPicker, setShowCharPicker] = useState(false)
   const [toggling, setToggling] = useState(new Set())
   const [tick, setTick] = useState(0)
-  const [editingChars, setEditingChars] = useState(false)
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 8 } })
@@ -34,10 +31,10 @@ export default function TaskList({ game, account, onBack }) {
   async function fetchCharacters() {
     const { data } = await supabase
       .from('account_characters')
-      .select('character_id, sort_order, characters(id, image_url, name)')
+      .select('character_id, sort_order, characters(id, image_url, name, image_position)')
       .eq('account_id', account.id)
-      .order('sort_order')
-    setCharacters((data || []).map(r => r.characters).filter(Boolean))
+    const sorted = (data || []).sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
+    setCharacters(sorted.map(r => r.characters).filter(Boolean))
   }
 
   async function handleDragEnd(event) {
@@ -45,10 +42,9 @@ export default function TaskList({ game, account, onBack }) {
     if (!over || active.id === over.id) return
     const oldIndex = characters.findIndex(c => c.id === active.id)
     const newIndex = characters.findIndex(c => c.id === over.id)
-    const newOrder = arrayMove(characters, oldIndex, newIndex)
-    setCharacters(newOrder)
-    // Update sort_order in DB
-    await Promise.all(newOrder.map((char, idx) =>
+    const newChars = arrayMove(characters, oldIndex, newIndex)
+    setCharacters(newChars)
+    await Promise.all(newChars.map((char, idx) =>
       supabase.from('account_characters')
         .update({ sort_order: idx })
         .eq('account_id', account.id)
@@ -74,17 +70,19 @@ export default function TaskList({ game, account, onBack }) {
   function isDone(task) {
     const lastDay = completionMap[task.id]
     if (!lastDay) return false
+    const resetDays = task.reset_days ?? 1
+    if (resetDays === 0) return true // no reset — stays done
     const resetHour = task.reset_hour ?? 3
-    const resetDays = task.reset_days || 1
     const today = getGameDayForHour(resetHour)
     if (resetDays === 1) return lastDay === today
     return daysBetween(lastDay, today) < resetDays
   }
 
   function taskCountdown(task) {
-    const resetHour = task.reset_hour ?? 3
-    const resetDays = task.reset_days || 1
+    const resetDays = task.reset_days ?? 1
     if (!isDone(task)) return null
+    if (resetDays === 0) return null // no reset, no countdown
+    const resetHour = task.reset_hour ?? 3
     if (resetDays === 1) {
       return `Resets in ${getTimeUntilResetHour(resetHour)}`
     }
@@ -117,13 +115,13 @@ export default function TaskList({ game, account, onBack }) {
   const today = getGameDayForHour(3)
 
   const gameIcon = game.image_url
-    ? <img src={game.image_url} alt={game.name} className="w-full h-full object-cover rounded-md" />
+    ? <img src={game.image_url} alt={game.name} className="w-full h-full object-cover rounded-md" style={{ objectPosition: game.image_position || '50% 50%' }} />
     : <div className="w-5 h-5 rounded-md" style={{ backgroundColor: game.color }} />
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6">
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={onBack} className="p-2 rounded-xl hover:bg-slate-800 transition-colors text-slate-400 hover:text-white flex-shrink-0">
+        <button onClick={onBack} className="p-2 rounded-xl hover:bg-white/5 backdrop-blur-sm transition-colors text-slate-400 hover:text-white flex-shrink-0">
           <ArrowLeft size={22} />
         </button>
         {/* Account avatar */}
@@ -135,7 +133,12 @@ export default function TaskList({ game, account, onBack }) {
           }}
         >
           {account.image_url
-            ? <img src={account.image_url} alt={account.name} className="w-full h-full object-cover" />
+            ? <DraggableImage
+                src={account.image_url}
+                position={account.image_position || '50% 50%'}
+                onPositionChange={pos => supabase.from('game_accounts').update({ image_position: pos }).eq('id', account.id)}
+                divClassName="w-full h-full"
+              />
             : <span style={{ color: game.color }}>{account.name.charAt(0).toUpperCase()}</span>
           }
         </div>
@@ -146,7 +149,7 @@ export default function TaskList({ game, account, onBack }) {
           </div>
           <h1 className="font-bold text-xl leading-tight truncate">{account.name}</h1>
           {account.description && (
-            <p className="text-slate-500 text-xs truncate">{account.description}</p>
+            <p className="text-slate-400 text-xs truncate">{account.description}</p>
           )}
           {/* Characters row — draggable */}
           {characters.length > 0 && (
@@ -155,54 +158,28 @@ export default function TaskList({ game, account, onBack }) {
                 <SortableContext items={characters.map(c => c.id)} strategy={horizontalListSortingStrategy}>
                   <div className="flex items-center gap-2 flex-wrap">
                     {characters.map(char => (
-                      <SortableCharacter key={char.id} char={char} editing={editingChars} />
+                      <SortableCharacter key={char.id} char={char} />
                     ))}
-                    {!editingChars && (
-                      <button
-                        onClick={() => setShowCharPicker(true)}
-                        className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-600 hover:border-indigo-400 flex items-center justify-center text-slate-500 hover:text-indigo-400 transition-colors"
-                      >
-                        <Plus size={16} />
-                      </button>
-                    )}
                   </div>
                 </SortableContext>
               </DndContext>
-              <div className="flex items-center gap-2 mt-1.5">
-                <button
-                  onClick={() => setEditingChars(e => !e)}
-                  className={`text-xs px-2 py-0.5 rounded-md transition-colors ${editingChars ? 'text-green-400 bg-green-400/10' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  {editingChars ? '✓ Done' : 'Reorder'}
-                </button>
-              </div>
-            </div>
-          )}
-          {characters.length === 0 && (
-            <div className="flex items-center gap-1.5 mt-1.5">
-              <button
-                onClick={() => setShowCharPicker(true)}
-                className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-600 hover:border-indigo-400 flex items-center justify-center text-slate-500 hover:text-indigo-400 transition-colors"
-              >
-                <Plus size={16} />
-              </button>
             </div>
           )}
         </div>
-        <button onClick={() => setShowManage(true)} className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors flex-shrink-0">
+        <button onClick={() => setShowManage(true)} className="p-2 rounded-xl hover:bg-white/5 backdrop-blur-sm text-slate-400 hover:text-white transition-colors flex-shrink-0">
           <Settings size={20} />
         </button>
       </div>
 
       {/* Progress */}
-      <div className="bg-slate-800 rounded-2xl p-4 mb-6">
+      <div className="bg-white/5 backdrop-blur-md rounded-2xl p-4 mb-6">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-slate-400">{formatGameDay(today)}</span>
           <span className="text-sm font-semibold" style={{ color: progress === 100 ? '#22c55e' : game.color }}>
             {doneCount}/{tasks.length}
           </span>
         </div>
-        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+        <div className="h-2 bg-white/8 rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all duration-500"
             style={{ width: `${progress}%`, backgroundColor: progress === 100 ? '#22c55e' : game.color }} />
         </div>
@@ -212,9 +189,9 @@ export default function TaskList({ game, account, onBack }) {
       </div>
 
       {loading ? (
-        <div className="text-slate-500 text-center py-10">Loading...</div>
+        <div className="text-slate-400 text-center py-10">Loading...</div>
       ) : tasks.length === 0 ? (
-        <div className="text-center py-20 text-slate-500">
+        <div className="text-center py-20 text-slate-400">
           <ClipboardList size={40} className="mx-auto mb-3 opacity-30" />
           <p>No tasks yet.</p>
           <button onClick={() => setShowManage(true)} className="mt-3 text-sm underline" style={{ color: game.color }}>Add tasks</button>
@@ -226,8 +203,8 @@ export default function TaskList({ game, account, onBack }) {
             const busy = toggling.has(task.id)
             const countdown = taskCountdown(task)
             const resetHour = task.reset_hour ?? 3
-            const resetDays = task.reset_days || 1
-            const scheduleLabel = !done
+            const resetDays = task.reset_days ?? 1
+            const scheduleLabel = !done && resetDays > 0
               ? (resetDays === 1
                   ? `Resets at ${String(resetHour).padStart(2, '0')}:00`
                   : `Every ${resetDays}d @ ${String(resetHour).padStart(2, '0')}:00`)
@@ -238,11 +215,11 @@ export default function TaskList({ game, account, onBack }) {
                 key={task.id}
                 onClick={() => toggleCompletion(task)}
                 disabled={busy}
-                className={`w-full flex items-center gap-4 rounded-xl p-4 transition-all text-left ${done ? 'bg-slate-800/50' : 'bg-slate-800 hover:bg-slate-700 active:scale-[0.98]'}`}
+                className={`w-full flex items-center gap-4 rounded-xl p-4 transition-all text-left ${done ? 'bg-white/5 backdrop-blur-sm/50' : 'bg-white/5 backdrop-blur-sm hover:bg-white/8 active:scale-[0.98]'}`}
               >
                 {done
                   ? <CheckCircle2 size={24} style={{ color: game.color }} className="flex-shrink-0" />
-                  : <Circle size={24} className="text-slate-500 flex-shrink-0" />
+                  : <Circle size={24} className="text-slate-400 flex-shrink-0" />
                 }
                 <div className="flex-1 min-w-0">
                   <div className={`font-medium ${done ? 'line-through text-slate-400' : 'text-white'}`}>
@@ -252,7 +229,7 @@ export default function TaskList({ game, account, onBack }) {
                     <div className="text-xs mt-0.5 text-orange-400 font-mono">{countdown}</div>
                   )}
                   {scheduleLabel && (
-                    <div className="text-xs mt-0.5 text-slate-500">{scheduleLabel}</div>
+                    <div className="text-xs mt-0.5 text-slate-400">{scheduleLabel}</div>
                   )}
                 </div>
               </button>
@@ -262,14 +239,6 @@ export default function TaskList({ game, account, onBack }) {
       )}
 
       {showManage && <ManageTasksModal game={game} onClose={() => { setShowManage(false); fetchData() }} />}
-      {showCharPicker && (
-        <CharacterPickerModal
-          game={game}
-          account={account}
-          onClose={() => setShowCharPicker(false)}
-          onSave={() => { setShowCharPicker(false); fetchCharacters() }}
-        />
-      )}
     </div>
   )
 }

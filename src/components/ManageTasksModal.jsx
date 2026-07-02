@@ -12,6 +12,7 @@ export default function ManageTasksModal({ game, onClose }) {
   const [editingId, setEditingId] = useState(null)
   const [editResetDays, setEditResetDays] = useState(1)
   const [editResetHour, setEditResetHour] = useState(3)
+  const [deleteTaskId, setDeleteTaskId] = useState(null)
 
   useEffect(() => { fetchTasks() }, [])
 
@@ -52,9 +53,17 @@ export default function ManageTasksModal({ game, onClose }) {
     setEditingId(null)
   }
 
+  async function toggleReset(task) {
+    const hasReset = (task.reset_days ?? 1) > 0
+    const newDays = hasReset ? 0 : 1
+    await supabase.from('game_tasks').update({ reset_days: newDays }).eq('id', task.id)
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, reset_days: newDays } : t))
+  }
+
   async function deleteTask(id) {
     await supabase.from('game_tasks').delete().eq('id', id)
     setTasks(prev => prev.filter(t => t.id !== id))
+    setDeleteTaskId(null)
   }
 
   function taskLabel(task) {
@@ -67,28 +76,28 @@ export default function ManageTasksModal({ game, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-2xl w-full max-w-sm flex flex-col max-h-[85vh]">
-        <div className="flex items-center justify-between p-5 border-b border-slate-700">
+      <div className="bg-white/5 backdrop-blur-md rounded-2xl w-full max-w-sm flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between p-5 border-b border-white/10">
           <div>
             <h2 className="font-bold text-lg">Manage Tasks</h2>
             <p className="text-slate-400 text-sm">{game.name}</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-700 text-slate-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/8 text-slate-400 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
           {loading ? (
-            <div className="text-slate-500 text-center py-8">Loading...</div>
+            <div className="text-slate-400 text-center py-8">Loading...</div>
           ) : tasks.length === 0 ? (
-            <div className="text-slate-500 text-center py-8">No tasks yet.</div>
+            <div className="text-slate-400 text-center py-8">No tasks yet.</div>
           ) : (
             <div className="space-y-2">
               {tasks.map(task => (
-                <div key={task.id} className="bg-slate-700 rounded-xl px-4 py-3">
+                <div key={task.id} className="bg-white/8 rounded-xl px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <span className={`flex-1 text-sm font-medium ${!task.enabled ? 'line-through text-slate-500' : 'text-white'}`}>
+                    <span className={`flex-1 text-sm font-medium ${!task.enabled ? 'line-through text-slate-400' : 'text-white'}`}>
                       {task.name}
                     </span>
                     <button onClick={() => toggleTask(task)} className="text-slate-400 hover:text-white transition-colors flex-shrink-0">
@@ -97,45 +106,55 @@ export default function ManageTasksModal({ game, onClose }) {
                         : <ToggleLeft size={22} />
                       }
                     </button>
-                    <button onClick={() => deleteTask(task.id)} className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0">
+                    <button onClick={() => setDeleteTaskId(task.id)} className="text-slate-400 hover:text-red-400 transition-colors flex-shrink-0">
                       <Trash2 size={15} />
                     </button>
                   </div>
 
-                  {editingId === task.id ? (
-                    <div className="mt-2 flex items-center gap-2 flex-wrap">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-slate-400">Every</span>
-                        <input type="number" min={1} value={editResetDays} onChange={e => setEditResetDays(Number(e.target.value))}
-                          className="w-14 bg-slate-600 rounded-lg px-2 py-1 text-xs text-white outline-none" />
-                        <span className="text-xs text-slate-400">days</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-slate-400">@</span>
-                        <input type="number" min={0} max={23} value={editResetHour} onChange={e => setEditResetHour(Number(e.target.value))}
-                          className="w-14 bg-slate-600 rounded-lg px-2 py-1 text-xs text-white outline-none" />
-                        <span className="text-xs text-slate-400">:00</span>
-                      </div>
-                      <button onClick={() => saveEdit(task)} className="ml-auto text-green-400 hover:text-green-300">
-                        <Check size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => { setEditingId(task.id); setEditResetDays(task.reset_days || 1); setEditResetHour(task.reset_hour ?? 3) }}
-                      className="flex items-center gap-1 mt-1.5 text-xs px-2 py-0.5 rounded-md hover:bg-slate-600 transition-colors"
-                      style={{ color: game.color }}
-                    >
-                      {taskLabel(task)} <Pencil size={10} />
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <button onClick={() => toggleReset(task)} className="flex-shrink-0">
+                      {(task.reset_days || 0) > 0
+                        ? <ToggleRight size={20} style={{ color: game.color }} />
+                        : <ToggleLeft size={20} className="text-slate-600" />
+                      }
                     </button>
-                  )}
+                    {(task.reset_days || 0) > 0 && (
+                      editingId === task.id ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-slate-400">Every</span>
+                            <input type="number" min={1} value={editResetDays} onChange={e => setEditResetDays(Number(e.target.value))}
+                              className="w-14 bg-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+                            <span className="text-xs text-slate-400">days @</span>
+                            <input type="number" min={0} max={23} value={editResetHour} onChange={e => setEditResetHour(Number(e.target.value))}
+                              className="w-14 bg-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+                            <span className="text-xs text-slate-400">:00</span>
+                          </div>
+                          <button onClick={() => saveEdit(task)} className="text-green-400 hover:text-green-300">
+                            <Check size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setEditingId(task.id); setEditResetDays(task.reset_days || 1); setEditResetHour(task.reset_hour ?? 3) }}
+                          className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-md hover:bg-white/10 transition-colors"
+                          style={{ color: game.color }}
+                        >
+                          {taskLabel(task)} <Pencil size={10} />
+                        </button>
+                      )
+                    )}
+                    {(task.reset_days || 0) === 0 && (
+                      <span className="text-xs text-slate-600">No reset</span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        <div className="p-5 border-t border-slate-700 space-y-3">
+        <div className="p-5 border-t border-white/10 space-y-3">
           <div className="flex gap-2">
             <input
               type="text"
@@ -143,7 +162,7 @@ export default function ManageTasksModal({ game, onClose }) {
               value={newTask}
               onChange={e => setNewTask(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addTask()}
-              className="flex-1 bg-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-400 outline-none focus:ring-2 text-sm"
+              className="flex-1 bg-white/8 rounded-xl px-4 py-2.5 text-white placeholder-slate-400 outline-none focus:ring-2 text-sm"
             />
             <button
               onClick={addTask}
@@ -155,16 +174,33 @@ export default function ManageTasksModal({ game, onClose }) {
             </button>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-slate-500">Every</span>
+            <span className="text-xs text-slate-400">Every</span>
             <input type="number" min={1} value={newResetDays} onChange={e => setNewResetDays(Number(e.target.value))}
-              className="w-14 bg-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none" />
-            <span className="text-xs text-slate-500">days @</span>
+              className="w-14 bg-white/8 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+            <span className="text-xs text-slate-400">days @</span>
             <input type="number" min={0} max={23} value={newResetHour} onChange={e => setNewResetHour(Number(e.target.value))}
-              className="w-14 bg-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none" />
-            <span className="text-xs text-slate-500">:00 (Bangkok time)</span>
+              className="w-14 bg-white/8 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+            <span className="text-xs text-slate-400">:00 (Bangkok time)</span>
           </div>
         </div>
       </div>
+
+      {deleteTaskId && (() => {
+        const task = tasks.find(t => t.id === deleteTaskId)
+        return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white/5 backdrop-blur-md rounded-2xl w-full max-w-sm p-6">
+              <h2 className="text-lg font-bold mb-2">Delete this task?</h2>
+              <p className="text-slate-400 text-sm mb-1">"{task?.name}"</p>
+              <p className="text-slate-500 text-xs mb-6">All task history will be deleted.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setDeleteTaskId(null)} className="flex-1 bg-white/8 hover:bg-white/10 py-3 rounded-xl font-medium">Cancel</button>
+                <button onClick={() => deleteTask(deleteTaskId)} className="flex-1 bg-red-600 hover:bg-red-500 py-3 rounded-xl font-medium">Delete</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

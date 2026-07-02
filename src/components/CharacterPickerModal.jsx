@@ -47,8 +47,8 @@ export default function CharacterPickerModal({ game, account, onClose, onSave })
   return (
     <>
       <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-4">
-        <div className="bg-slate-800 rounded-2xl w-full max-w-sm flex flex-col max-h-[85vh]">
-          <div className="flex items-center justify-between p-5 border-b border-slate-700">
+        <div className="bg-white/5 backdrop-blur-md rounded-2xl w-full max-w-sm flex flex-col max-h-[85vh]">
+          <div className="flex items-center justify-between p-5 border-b border-white/10">
             <div>
               <h2 className="font-bold text-lg">Select Characters</h2>
               <p className="text-slate-400 text-sm">{account.name}</p>
@@ -56,12 +56,12 @@ export default function CharacterPickerModal({ game, account, onClose, onSave })
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowLibrary(true)}
-                className="p-2 rounded-xl hover:bg-slate-700 text-slate-400 hover:text-white"
+                className="p-2 rounded-xl hover:bg-white/8 text-slate-400 hover:text-white"
                 title="Manage library"
               >
                 <BookOpen size={18} />
               </button>
-              <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-700 text-slate-400 hover:text-white">
+              <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/8 text-slate-400 hover:text-white">
                 <X size={20} />
               </button>
             </div>
@@ -69,9 +69,9 @@ export default function CharacterPickerModal({ game, account, onClose, onSave })
 
           <div className="flex-1 overflow-y-auto p-4">
             {loading ? (
-              <div className="text-slate-500 text-center py-8">Loading...</div>
+              <div className="text-slate-400 text-center py-8">Loading...</div>
             ) : library.length === 0 ? (
-              <div className="text-center py-10 text-slate-500">
+              <div className="text-center py-10 text-slate-400">
                 <p className="mb-3">No characters in library yet.</p>
                 <button onClick={() => setShowLibrary(true)} className="text-sm underline" style={{ color: game.color }}>
                   Add characters to library
@@ -89,7 +89,7 @@ export default function CharacterPickerModal({ game, account, onClose, onSave })
                     >
                       <div className={`aspect-square rounded-xl overflow-hidden border-2 transition-all ${isSelected ? 'scale-95' : 'border-transparent hover:border-slate-500'}`}
                         style={{ borderColor: isSelected ? game.color : undefined }}>
-                        <img src={char.image_url} alt={char.name || ''} className="w-full h-full object-cover" />
+                        <img src={char.image_url} alt={char.name || ''} className="w-full h-full object-cover" style={{ objectPosition: char.image_position || '50% 50%' }} />
                         {isSelected && (
                           <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                             <div className="bg-white rounded-full p-0.5">
@@ -108,8 +108,8 @@ export default function CharacterPickerModal({ game, account, onClose, onSave })
             )}
           </div>
 
-          <div className="p-4 border-t border-slate-700 flex gap-3">
-            <button onClick={onClose} className="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-medium text-sm">Cancel</button>
+          <div className="p-4 border-t border-white/10 flex gap-3">
+            <button onClick={onClose} className="flex-1 bg-white/8 hover:bg-white/10 py-3 rounded-xl font-medium text-sm">Cancel</button>
             <button
               onClick={save}
               disabled={saving}

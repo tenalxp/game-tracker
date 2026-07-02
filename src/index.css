@@ -5,6 +5,7 @@
 }
 
 body {
-  background-color: #0f172a;
+  background-color: #050510;
+  min-height: 100vh;
   color: #f1f5f9;
 }
